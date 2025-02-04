@@ -243,7 +243,7 @@ app.get('/logout', function (req, res) {
 	})
 });
 
-app.listen(3000, (req, res)=>{
-    console.log('SERVER RUNNING IN http://localhost:3000');
 
-})
+app.listen(8080, () => {
+    console.log('SERVER RUNNING IN http://localhost:8080');
+});
