@@ -6,6 +6,7 @@
     <title>Cuestionario de Evaluación</title>
     <link rel="stylesheet" href="resources/css/style-cuestionario.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@1.0.2/dist/chartjs-plugin-annotation.min.js"></script>
 </head>
 <body>
     <% if (login) { %>                
@@ -19,13 +20,13 @@
             </ul>
         </nav>
     </header>
-
     <div class="container">
         <h1>Cuestionario de Evaluación</h1>
         
         <form id="cuestionario">
             <div id="secciones-container"></div>
             <button type="button" onclick="calcularTotal()">Calcular Total</button>
+            <button type="button" onclick="guardarResultados()">Guardar</button>
         </form>
 
         <div id="dashboard">
@@ -48,10 +49,16 @@
                         <td><strong>Nivel de Madurez</strong></td>
                         <td id="nivel-madurez">0</td>
                     </tr>
+                    <tr>
+                        <td colspan="2" id="mensaje-madurez"></td>
+                    </tr>
                 </tfoot>
             </table>
             <div style="width: 80%; margin: 20px auto;">
                 <canvas id="grafica-resultados"></canvas>
+            </div>
+            <div style="width: 80%; margin: 20px auto;">
+                <canvas id="grafica-radar"></canvas>
             </div>
         </div>
     </div>
@@ -250,19 +257,27 @@
             resultadosSecciones.appendChild(fila);
     });
     let promedio = totalGeneral / secciones.length;
+    
     let nivelMadurez;
+    let mensajeMadurez = '';
     if (promedio >= 0 && promedio <= 6) {
         nivelMadurez = 1;
+        mensajeMadurez = 'Nivel 1: Madurez inicial. Se requiere mejorar los procesos y controles de seguridad.';
     } else if (promedio >= 7 && promedio <= 12) {
         nivelMadurez = 2;
+        mensajeMadurez = 'Nivel 2: Madurez intermedia. Los procesos y controles de seguridad están en desarrollo, pero aún hay áreas de mejora.';
     } else if (promedio >= 13 && promedio <= 18) {
         nivelMadurez = 3;
+        mensajeMadurez = 'Nivel 3: Madurez avanzada. Los procesos y controles de seguridad están bien establecidos y son efectivos.';
     } else {
         nivelMadurez = "Fuera de rango";
+        mensajeMadurez = 'El promedio está fuera del rango esperado. Revise los datos ingresados.';
     }
+
     document.getElementById('total-general').innerText = totalGeneral.toFixed(2);
     document.getElementById('nivel-madurez').innerText = nivelMadurez;
     document.getElementById('total-general').innerText = totalGeneral;
+    document.getElementById('mensaje-madurez').innerText = mensajeMadurez;
 
     if (!grafica) {
         grafica = new Chart(document.getElementById('grafica-resultados'), {
@@ -293,7 +308,55 @@
         grafica.data.datasets[0].borderColor = colores;
         grafica.update(); 
     }
-}
+     
+    const ctxRadar = document.getElementById('grafica-radar').getContext('2d');
+    if(window.graficaRadar) {
+        window.graficaRadar.data.datasets[0].data = datos;
+        window.graficaRadar.update();
+    } else {
+        
+        window.graficaRadar = new Chart(ctxRadar, {
+            type: 'radar', 
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Puntaje total', 
+                    data: datos, 
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 2 
+                }]
+            },
+            options: {
+                scale: {
+                    ticks: {
+                        beginAtZero: true,
+                        max: 100, 
+                        stepSize: 20, 
+                        callback: function (value) {
+                            
+                            if (value === 30) return 'Nivel 1';
+                            if (value === 60) return 'Nivel 2';
+                            if (value === 90) return 'Nivel 3';
+                            return '';
+                        }
+                    },
+                    pointLabels: {
+                        font: {
+                            size: 20
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top' 
+                    }
+                },
+            }
+        });
+    }
+    }
 
     function getColorAleatorio() {
     const r = Math.floor(Math.random() * 256);
@@ -301,6 +364,20 @@
     const b = Math.floor(Math.random() * 256);
     return `rgba(${r}, ${g}, ${b}, 0.6)`;
     }
+
+    function guardarResultados() {
+    const resultados = secciones.map(seccion => ({
+        nombre: seccion.nombre,
+        puntaje: parseFloat(document.getElementById(`total-${seccion.id}`).innerText)
+    }));
+    const nivelMadurez = document.getElementById('nivel-madurez').innerText;
+    const mensajeMadurez = document.getElementById('mensaje-madurez').innerText;
+
+    const resultadosJSON = JSON.stringify(resultados);
+
+    window.location.href = `resultados?resultados=${encodeURIComponent(resultadosJSON)}&nivelMadurez=${encodeURIComponent(nivelMadurez)}&mensajeMadurez=${encodeURIComponent(mensajeMadurez)}`;
+    }
+
 
     window.onload = generarPreguntas;
     </script>
