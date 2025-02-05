@@ -2,23 +2,13 @@ require('dotenv').config();
 
 const mysql = require('mysql2');
 
-/*
-const connection = mysql.createConnection({
-  host: 'sammdb.mysql.database.azure.com',
-  user: 'antonio',
-  password: 'tonio689@',
-  database: 'sammdb',
-  port: 3306,
-});
-
-*/
 
 const connection = mysql.createConnection({
-    host: process.env.DB_HOST,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
-    port: process.env.DB_PORT,
+    host: 'sammdb.mysql.database.azure.com',
+    user: 'antonio',
+    password: 'tonio689@',
+    database: 'sammdb',
+    port: 3306,
   });
 
 connection.connect((error)=>{
@@ -44,4 +34,4 @@ app.get('/test-db', (req, res) => {
     });
 });
 
-app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
+app.listen(8080, () => console.log('Servidor corriendo en puerto 8080'));
