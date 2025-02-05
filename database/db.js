@@ -34,4 +34,4 @@ app.get('/test-db', (req, res) => {
     });
 });
 
-app.listen(8080, () => console.log('Servidor corriendo en puerto 8080'));
+app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
