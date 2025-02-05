@@ -1,11 +1,12 @@
-const mysql = require('mysql');
+const mysql = require('mysql2');
 
 
 const connection = mysql.createConnection({
   host: 'sammdb.mysql.database.azure.com',
   user: 'antonio',
   password: 'tonio689@',
-  database: 'sammdb'
+  database: 'sammdb',
+  port: 3306,
 });
 
 
