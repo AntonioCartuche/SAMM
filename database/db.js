@@ -21,3 +21,19 @@ connection.connect((error)=>{
     console.log('Conexion OK BD');
 });
 module.exports = connection;
+
+
+const express = require('express');
+const app = express();
+
+app.get('/test-db', (req, res) => {
+    connection.ping((err) => {
+        if (err) {
+            res.status(500).send('No se pudo conectar a la base de datos');
+        } else {
+            res.send('Conexión exitosa a la base de datos');
+        }
+    });
+});
+
+app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
