@@ -18,7 +18,7 @@ body {
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
     text-align: center;
     width: 400px;
-    margin-bottom:300px; /* Lo mueve hacia arriba */
+    margin-bottom:280px; /* Lo mueve hacia arriba */
 
     width: 100vw;  /* Ocupa el 100% del ancho de la pantalla */
     box-sizing: border-box; 
