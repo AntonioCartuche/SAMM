@@ -1,39 +1,37 @@
 require('dotenv').config();
-const sql = require('mssql');
 
-// Configuración de la conexión para MS SQL Server en Azure
-const config = {
-    user: 'antonio', // Usuario de SQL Server
-    password: 'tonio689@', // Contraseña
-    server: 'sammdb.database.windows.net', // Host de Azure SQL Server
-    database: 'sammdb', // Nombre de la base de datos
-    port: 1433, // Puerto de SQL Server
-    options: {
-        encrypt: true, // Requerido para conexiones en Azure
-        trustServerCertificate: false
+const mysql = require('mysql2');
+
+
+const connection = mysql.createConnection({
+    host: 'sammdb.mysql.database.azure.com',
+    user: 'antonio',
+    password: 'tonio689@',
+    database: 'sammdb',
+    port: 3306,
+  });
+
+connection.connect((error)=>{
+    if(error){
+        console.log('El error de conexion es :'+error);
+        return;
     }
-};
+    console.log('Conexion OK BD');
+});
+module.exports = connection;
 
-// Crear la conexión
-const pool = new sql.ConnectionPool(config);
 
-pool.connect()
-    .then(() => console.log('Conexión a SQL Server en Azure OK'))
-    .catch(err => console.log('Error de conexión:', err));
-
-module.exports = pool;
-
-// Servidor Express con ruta de prueba de conexión
 const express = require('express');
 const app = express();
 
-app.get('/test-db', async (req, res) => {
-    try {
-        let result = await pool.request().query('SELECT 1 AS status');
-        res.send('Conexión exitosa a la base de datos');
-    } catch (err) {
-        res.status(500).send('No se pudo conectar a la base de datos: ' + err);
-    }
+app.get('/test-db', (req, res) => {
+    connection.ping((err) => {
+        if (err) {
+            res.status(500).send('No se pudo conectar a la base de datos');
+        } else {
+            res.send('Conexión exitosa a la base de datos');
+        }
+    });
 });
 
 app.listen(3000, () => console.log('Servidor corriendo en puerto 3000'));
