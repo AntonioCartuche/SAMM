@@ -1,6 +1,6 @@
 body {
     font-family: Arial, sans-serif;
-    background-color: #ceb83d54;
+    background-color: white;
     margin: 0;
     padding: 0;
 }
@@ -17,7 +17,7 @@ body {
 
 h1 {
     text-align: center;
-    color: #3a5dcf;
+    color:  black;
 }
 
 .seccion {
@@ -48,7 +48,7 @@ th, td {
 }
 
 th {
-    background-color: #3a5dcf;
+    background-color: #356864;
     color: white;
 }
 
@@ -58,7 +58,7 @@ button {
     padding: 10px;
     margin-top: 10px;
     border: none;
-    background-color: #3a5dcf;
+    background-color: #356864;
     color: white;
     font-size: 16px;
     border-radius: 5px;
@@ -66,7 +66,7 @@ button {
 }
 
 button:hover {
-    background-color: #2e4cad;
+    background-color: #383c41;;
 }
 
 #dashboard {
@@ -89,13 +89,21 @@ button:hover {
 }
 
 #dashboard th {
-    background-color: #3a5dcf;
+    background-color: #356864;
 }
 
 h3 {
     text-align: right;
-    color: coral;
+    color: #333;
 }
+
+h5 {
+    text-align: right;
+    font-weight: bold;
+    font-size: 17px;
+    color: black;
+}
+
 
 header {
     display: flex;
@@ -103,7 +111,8 @@ header {
     align-items: center;
     padding: 15px 50px;
     background-color: rgb(142, 197, 204);
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 4px 6px rgb(255, 255, 255);
+    background-image: url('./backSAMM.jpg');
 }
 
 nav ul {
@@ -116,20 +125,39 @@ nav ul li {
 }
 nav ul li a {
     text-decoration: none;
-    color: black;
+    color: #ffffff;
     font-weight: bold;
 }
 
 nav ul li a:hover{
- background-color: #3abecf;
+ background-color: #9898a8;
 }
 
 .logo {
     font-size: 24px;
     font-weight: bold;
+    color: #ffffff;
 }
 
-#mensaje-madurez {
+#mensaje-madurez1 {
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 5px;
+    font-style: italic;
+    color: #333;
+    margin-top: 10px;
+}
+
+#mensaje-madurez2 {
+    background-color: #f0f0f0;
+    padding: 10px;
+    border-radius: 5px;
+    font-style: italic;
+    color: #333;
+    margin-top: 10px;
+}
+
+#mensaje-madurez3 {
     background-color: #f0f0f0;
     padding: 10px;
     border-radius: 5px;

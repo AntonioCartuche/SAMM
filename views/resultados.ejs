@@ -28,8 +28,10 @@
             <div class="resultados">
                 <h3>Resultados por Sección</h3>
                 <ul id="resultados-secciones"></ul>
-                <p><strong>Nivel de Madurez:</strong> <span id="nivel-madurez">0</span></p>
-                <p id="mensaje-madurez"></p>
+                <p><strong>Nivel de Madurez General:</strong> <span id="nivel-madurez">0</span></p>
+                <p id="mensaje-madurez1"></p>
+                <p id="mensaje-madurez2"></p>
+                <p id="mensaje-madurez3"></p>
             </div>
         </div>
         <a href="principal" class="btn-volver">Volver a principal</a>
@@ -39,9 +41,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         const resultados = JSON.parse(urlParams.get('resultados'));
         const nivelMadurez = urlParams.get('nivelMadurez');
-        const mensajeMadurez = urlParams.get('mensajeMadurez');
+        const mensajeMadurez1 = urlParams.get('mensajeMadurez1');
+        const mensajeMadurez2 = urlParams.get('mensajeMadurez2');
+        const mensajeMadurez3 = urlParams.get('mensajeMadurez3');
         document.getElementById('nivel-madurez').innerText = nivelMadurez;
-        document.getElementById('mensaje-madurez').innerText = mensajeMadurez;
+        document.getElementById('mensaje-madurez1').innerText = mensajeMadurez1;
+        document.getElementById('mensaje-madurez2').innerText = mensajeMadurez2;
+        document.getElementById('mensaje-madurez3').innerText = mensajeMadurez3;
 
         const resultadosSecciones = document.getElementById('resultados-secciones');
         resultados.forEach(seccion => {

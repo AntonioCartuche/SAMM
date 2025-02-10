@@ -49,11 +49,17 @@
                                 <td id="total-general">0</td>
                             </tr>
                             <tr>
-                                <td><strong>Nivel de Madurez</strong></td>
+                                <td><strong>Nivel de Madurez General</strong></td>
                                 <td id="nivel-madurez">0</td>
                             </tr>
                             <tr>
-                                <td colspan="2" id="mensaje-madurez"></td>
+                                <td colspan="2" id="mensaje-madurez1"></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" id="mensaje-madurez2"></td>
+                            </tr>
+                            <tr>
+                                <td colspan="2" id="mensaje-madurez3"></td>
                             </tr>
                         </tfoot>
                     </table>
@@ -90,7 +96,7 @@
                         ]
                     },
                     {
-                        id: 'diseño', nombre: 'Diseño', preguntas: [
+                        id: 'diseno', nombre: 'Diseño', preguntas: [
                             "¿Clasifica las aplicaciones según el riesgo empresarial basándose en una serie de preguntas sencillas y predefinidas?",
                             "¿Utiliza perfiles de riesgo de aplicación centralizados y cuantificados para evaluar el riesgo empresarial?",
                             "¿Revisa y actualiza periódicamente los perfiles de riesgo de sus aplicaciones?",
@@ -179,6 +185,12 @@
                     },
                 ];
 
+                let totalGobernanza = 0;
+                let totalDiseno = 0;
+                let totalImplementacion = 0;
+                let totalVerificacion = 0;
+                let totalOperaciones = 0;
+
                 function generarPreguntas() {
                     let container = document.getElementById('secciones-container');
                     container.innerHTML = '';
@@ -187,20 +199,20 @@
                         let div = document.createElement("div");
                         div.classList.add("seccion");
                         div.innerHTML = `
-                    <h2>${seccion.nombre}</h2>
-                    <table>
-                        <tr>
-                            <th>Pregunta</th>
-                            <th>Respuestas</th>
-                            <th>Valor</th>
-                        </tr>
-                        <tbody id="tabla-${seccion.id}"></tbody>
-                        <tr>
-                            <td colspan="2"><strong>Total</strong></td>
-                            <td id="total-${seccion.id}">0</td>
-                        </tr>
-                    </table>
-                `;
+            <h2>${seccion.nombre}</h2>
+            <table>
+                <tr>
+                    <th>Pregunta</th>
+                    <th>Respuestas</th>
+                    <th>Valor</th>
+                </tr>
+                <tbody id="tabla-${seccion.id}"></tbody>
+                <tr>
+                    <td colspan="2"><strong>Total</strong></td>
+                    <td id="total-${seccion.id}">0</td>
+                </tr>
+            </table>
+        `;
 
                         container.appendChild(div);
                         let tabla = document.getElementById(`tabla-${seccion.id}`);
@@ -208,16 +220,16 @@
                         seccion.preguntas.forEach((pregunta, index) => {
                             let fila = document.createElement("tr");
                             fila.innerHTML = `
-                        <td>${pregunta}</td>
-                        <td>
-                            <select onchange="actualizarValor('${seccion.id}')">
-                                <option value="0">No</option>
-                                <option value="1">Sí</option>
-                                <option value="0.5">En parte</option>
-                            </select>
-                        </td>
-                        <td class="valor">0</td>
-                    `;
+                <td>${pregunta}</td>
+                <td>
+                    <select onchange="actualizarValor('${seccion.id}')">
+                        <option value="0">No</option>
+                        <option value="1">Sí</option>
+                        <option value="0.5">En parte</option>
+                    </select>
+                </td>
+                <td class="valor">0</td>
+            `;
                             tabla.appendChild(fila);
                         });
                     });
@@ -234,7 +246,40 @@
                             total += valor;
                         }
                     });
+
                     document.getElementById(`total-${seccion}`).innerText = total;
+
+            
+                    switch (seccion) {
+                        case 'gobernanza':
+                            totalGobernanza = total;
+                            break;
+                        case 'diseno':
+                            totalDiseno = total;
+                            break;
+                        case 'implementacion':
+                            totalImplementacion = total;
+                            break;
+                        case 'verificacion':
+                            totalVerificacion = total;
+                            break;
+                        case 'operaciones':
+                            totalOperaciones = total;
+                            break;
+                        default:
+                            console.warn(`Sección desconocida: ${seccion}`);
+                    }
+
+                }
+
+                function obtenerTotales() {
+                    return {
+                        gobernanza: totalGobernanza,
+                        diseno: totalDiseno,
+                        implementacion: totalImplementacion,
+                        verificacion: totalVerificacion,
+                        operaciones: totalOperaciones
+                    };
                 }
 
                 function calcularTotal() {
@@ -273,24 +318,26 @@
 
                     let nivelMadurez;
                     let mensajeMadurez = '';
-                    if (promedio >= 0 && promedio <= 6) {
+                    if (promedio <= 6) {
                         nivelMadurez = 1;
-                        mensajeMadurez = 'Nivel 1: Madurez inicial. Se requiere mejorar los procesos y controles de seguridad.';
-                    } else if (promedio >= 7 && promedio <= 12) {
+                        
+                    } else if (promedio <= 12) {
                         nivelMadurez = 2;
-                        mensajeMadurez = 'Nivel 2: Madurez intermedia. Los procesos y controles de seguridad están en desarrollo, pero aún hay áreas de mejora.';
-                    } else if (promedio >= 13 && promedio <= 18) {
+                        
+                    } else if (promedio <= 18) {
                         nivelMadurez = 3;
-                        mensajeMadurez = 'Nivel 3: Madurez avanzada. Los procesos y controles de seguridad están bien establecidos y son efectivos.';
-                    } else {
-                        nivelMadurez = "Fuera de rango";
-                        mensajeMadurez = 'El promedio está fuera del rango esperado. Revise los datos ingresados.';
-                    }
+                        
+                    } 
+                    mensajeMadurez1 = 'Nivel 1: Madurez inicial. Se requiere mejorar los procesos y controles de seguridad.';
+                    mensajeMadurez2 = 'Nivel 2: Madurez intermedia. Los procesos y controles de seguridad están en desarrollo, pero aún hay áreas de mejora.';
+                    mensajeMadurez3 = 'Nivel 3: Madurez avanzada. Los procesos y controles de seguridad están bien establecidos y son efectivos.';
 
                     document.getElementById('total-general').innerText = totalGeneral.toFixed(2);
                     document.getElementById('nivel-madurez').innerText = nivelMadurez;
                     document.getElementById('total-general').innerText = totalGeneral;
-                    document.getElementById('mensaje-madurez').innerText = mensajeMadurez;
+                    document.getElementById('mensaje-madurez1').innerText = mensajeMadurez1;
+                    document.getElementById('mensaje-madurez2').innerText = mensajeMadurez2;
+                    document.getElementById('mensaje-madurez3').innerText = mensajeMadurez3;
 
                     if (!grafica) {
                         grafica = new Chart(document.getElementById('grafica-resultados'), {
@@ -323,55 +370,82 @@
                     }
 
                     const ctxRadar = document.getElementById('grafica-radar').getContext('2d');
-                    if (window.graficaRadar) {
-                        window.graficaRadar.data.datasets[0].data = datos;
-                        window.graficaRadar.update();
-                    } else {
-                       
-                        const coloresFondo = [
-                            'rgba(249, 233, 60, 0.1)',  
-                            'rgba(75, 192, 192, 0.2)',  
-                            'rgba(153, 102, 255, 0.2)', 
-                            'rgba(255, 159, 64, 0.2)',  
-                            'rgba(54, 162, 235, 0.2)'   
+
+                    const coloresFondo = [
+                        'rgba(249, 233, 60, 0.1)',
+                        'rgba(75, 192, 192, 0.2)',
+                        'rgba(153, 102, 255, 0.2)',
+                        'rgba(255, 159, 64, 0.2)',
+                        'rgba(54, 162, 235, 0.2)'
+                    ];
+
+                    const coloresBorde = [
+                        'rgba(249, 233, 60, 1)',
+                        'rgba(75, 192, 192, 1)',
+                        'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)',
+                        'rgba(54, 162, 235, 1)'
+                    ];
+
+                    function obtenerDatosActualizados() {
+                        return [
+                            [totalGobernanza, 0, 0, 0, 0],
+                            [0, totalDiseno, 0, 0, 0],
+                            [0, 0, totalImplementacion, 0, 0],
+                            [0, 0, 0, totalVerificacion, 0],
+                            [0, 0, 0, 0, totalOperaciones]
                         ];
 
-                        const coloresBorde = [
-                            'rgba(249, 233, 60, 2)',  
-                            'rgba(75, 192, 192, 2)',  
-                            'rgba(153, 102, 255, 2)', 
-                            'rgba(255, 159, 64, 2)', 
-                            'rgba(54, 162, 235, 2)'   
-                        ];
+                    }
+
+                    function actualizarGrafica() {
+                        if (window.graficaRadar) {
+                            let nuevosDatos = obtenerDatosActualizados();
+                            window.graficaRadar.data.datasets.forEach((dataset, index) => {
+                                dataset.data = nuevosDatos[index];
+                            });
+                            window.graficaRadar.update();
+                        }
+
+                    }
+
+                    if (!window.graficaRadar) {
+                        const datosIniciales = obtenerDatosActualizados();
+
+                        const datasets = labels.map((label, index) => ({
+                            label: label,
+                            data: datosIniciales[index],
+                            backgroundColor: coloresFondo[index],
+                            borderColor: coloresBorde[index],
+                            borderWidth: 2,
+                            fill: true,
+                            spanGaps: false
+                        }));
 
                         window.graficaRadar = new Chart(ctxRadar, {
                             type: 'radar',
                             data: {
                                 labels: labels,
-                                datasets: [{
-                                    label: 'Total de sección',
-                                    data: datos,
-                                    backgroundColor: coloresFondo,
-                                    borderColor: coloresBorde,
-                                    borderWidth: 3
-                                }]
+                                datasets: datasets
                             },
                             options: {
-                                scale: {
-                                    ticks: {
-                                        beginAtZero: true,
-                                        max: 90,
-                                        stepSize: 30,
-                                        callback: function (value) {
-                                            if (value === 30) return 'Nivel de madurez 1';
-                                            if (value === 60) return 'Nivel de madurez 2';
-                                            if (value === 90) return 'Nivel de madurez 3';
-                                            return '';
-                                        }
-                                    },
-                                    pointLabels: {
-                                        font: {
-                                            size: 60
+                                scales: {
+                                    r: {
+                                        min: 0,
+                                        max: 18, 
+                                        ticks: {
+                                            stepSize: 6, 
+                                            callback: function (value) {
+                                                if (value <= 6) return 'Nivel de madurez 1';
+                                                if (value <= 12) return 'Nivel de madurez 2';
+                                                if (value <= 18) return 'Nivel de madurez 3';
+                                                return ''; 
+                                            }
+                                        },
+                                        pointLabels: {
+                                            font: {
+                                                size: 16
+                                            }
                                         }
                                     }
                                 },
@@ -380,11 +454,16 @@
                                         display: true,
                                         position: 'top'
                                     }
-                                },
+                                }
                             }
                         });
+
+
                     }
+                    window.graficaRadar.update(actualizarGrafica);
+
                 }
+
 
                 function getColorAleatorio() {
                     const r = Math.floor(Math.random() * 256);
@@ -399,11 +478,13 @@
                         puntaje: parseFloat(document.getElementById(`total-${seccion.id}`).innerText)
                     }));
                     const nivelMadurez = document.getElementById('nivel-madurez').innerText;
-                    const mensajeMadurez = document.getElementById('mensaje-madurez').innerText;
+                    const mensajeMadurez1 = document.getElementById('mensaje-madurez1').innerText;
+                    const mensajeMadurez2 = document.getElementById('mensaje-madurez2').innerText;
+                    const mensajeMadurez3 = document.getElementById('mensaje-madurez3').innerText;
 
                     const resultadosJSON = JSON.stringify(resultados);
 
-                    window.location.href = `resultados?resultados=${encodeURIComponent(resultadosJSON)}&nivelMadurez=${encodeURIComponent(nivelMadurez)}&mensajeMadurez=${encodeURIComponent(mensajeMadurez)}`;
+                    window.location.href = `resultados?resultados=${encodeURIComponent(resultadosJSON)}&nivelMadurez=${encodeURIComponent(nivelMadurez)}&mensajeMadurez1=${encodeURIComponent(mensajeMadurez1)}&mensajeMadurez2=${encodeURIComponent(mensajeMadurez2)}&mensajeMadurez3=${encodeURIComponent(mensajeMadurez3)}`;
                 }
 
 
