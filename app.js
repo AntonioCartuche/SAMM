@@ -2,11 +2,36 @@
 const express = require('express');
 const app = express();
 
-app.use(express.urlencoded({extend:false}));
-app.use(express.json());
-
 const dotenv = require('dotenv');
-dotenv.config({path:'./env/.env'});
+dotenv.config({ path: './env/.env', quiet: true });
+
+const pool = require('./database/db');
+
+const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
+
+const promClient = require('prom-client');
+const register = new promClient.Registry();
+promClient.collectDefaultMetrics({
+  register,
+  prefix: 'nodejs_',
+});
+
+app.get('/metrics', async (req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (e) {
+    res.status(500).end(e.message);
+  }
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok', service: 'samm-app' });
+});
+
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 
 app.use('/resources', express.static('public'));
 app.use('/resources', express.static(__dirname + '/public'));
@@ -15,14 +40,32 @@ app.set('view engine', 'ejs');
 
 const bcryptjs = require('bcryptjs');
 
-const session = require('express-session');
-app.use(session({
-    secret:'secret',
-    resave: true,
-    saveUninitialized: true
-}));
+app.use(
+  session({
+    store: new pgSession({
+      pool,
+      tableName: 'session',
+      createTableIfMissing: true,
+    }),
+    secret: process.env.SESSION_SECRET || 'secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+      httpOnly: true,
+      sameSite: 'lax',
+    },
+  })
+);
 
-const connection = require('./database/db');
+// Antes de las rutas que hacen render: evita mezclar cabeceras con respuestas ya enviadas.
+app.use((req, res, next) => {
+  if (req.path === '/metrics' || req.path === '/health') {
+    return next();
+  }
+  res.set('Cache-Control', 'private, no-cache, no-store, must-revalidate');
+  next();
+});
 
 app.get('/login',(req, res)=>{
     res.render('login');
@@ -45,7 +88,6 @@ app.get('/principal',(req, res)=>{
 			name:'Debe iniciar sesión',			
 		});				
 	}
-	res.end();
 })
 
 app.get('/cuestionario',(req, res)=>{
@@ -62,7 +104,6 @@ app.get('/cuestionario',(req, res)=>{
 			name:'Debe iniciar sesión',	
 		});				
 	}
-	res.end();
 })
 
 
@@ -71,17 +112,19 @@ app.get('/resultados', async (req, res)=>{
     if (!proyectoId) {
         return res.status(400).send('ID del proyecto no proporcionado');
     }
-    connection.query('SELECT titulo, descripcion FROM proyecto WHERE id = ?', [proyectoId], (error, results) => {
+    pool.query(
+        'SELECT titulo, descripcion FROM proyecto WHERE id = $1',
+        [proyectoId],
+        (error, results) => {
         if (error) {
             return res.status(500).send('Error al consultar la base de datos');
         }
 
-        if (results.length === 0) {
+        if (results.rows.length === 0) {
             return res.status(404).send('Proyecto no encontrado');
         }
 
-        const proyecto = results[0];
-        
+        const proyecto = results.rows[0];
 
     if (req.session.loggedin) {
             res.render('resultados', {
@@ -96,7 +139,6 @@ app.get('/resultados', async (req, res)=>{
 			name:'Debe iniciar sesión',			
 		});				
 	}
-	res.end();
 }) 
 }) 
 
@@ -113,13 +155,15 @@ app.get('/proyecto',(req, res)=>{
 			name:'Debe iniciar sesión',			
 		});				
 	}
-	res.end();
 })
 
 app.post('/proyecto', async (req, res)=>{
     const titulo = req.body.titulo;
     const descripcion = req.body.descripcion;
-    connection.query('INSERT INTO proyecto SET ?', {titulo:titulo, descripcion:descripcion}, async(error, results)=>{
+    pool.query(
+        'INSERT INTO proyecto (titulo, descripcion) VALUES ($1, $2) RETURNING id',
+        [titulo, descripcion],
+        (error, results) => {
         if(error){
             res.render('proyecto', {
                 alert: true,
@@ -130,9 +174,9 @@ app.post('/proyecto', async (req, res)=>{
                 timer: false,
                 ruta: 'proyecto'
             });
-        }else{ 
-            const proyectoId = results.insertId;
-            req.session.proyectoId = proyectoId; 
+        }else{
+            const proyectoId = results.rows[0].id;
+            req.session.proyectoId = proyectoId;
             
             res.render('proyecto', {
                 alert: true,
@@ -155,12 +199,20 @@ app.post('/register', async (req, res)=>{
     const rol = req.body.rol;
     const pass = req.body.pass;
     let passordHaash = await bcryptjs.hash(pass, 8);
-    connection.query('INSERT INTO users SET ?', {user:user, name:name, rol:rol, pass:passordHaash}, async(error, results)=>{
+    pool.query(
+        'INSERT INTO users (username, name, rol, pass) VALUES ($1, $2, $3, $4)',
+        [user, name, rol, passordHaash],
+        async(error) => {
         if(error){
+            const dup =
+                error.code === '23505' ||
+                (error.message && error.message.includes('duplicate key'));
             res.render('register', {
                 alert: true,
                 alertTitle: 'Error',
-                alertMessage: '¡Datos no registrados!',
+                alertMessage: dup
+                    ? 'Ese nombre de usuario ya existe. Elige otro.'
+                    : '¡Datos no registrados!',
                 alertIcon: 'error',
                 showConfirmButton: true,
                 timer: false,
@@ -170,11 +222,11 @@ app.post('/register', async (req, res)=>{
             res.render('register', {
                 alert: true,
                 alertTitle: 'Registro',
-                alertMessage: '¡Registro existoso!',
+                alertMessage: '¡Registro exitoso! Inicia sesión.',
                 alertIcon: 'success',
                 showConfirmButton: false,
                 timer: 1500,
-                ruta: ''
+                ruta: 'login'
             });
         }
     })
@@ -183,10 +235,21 @@ app.post('/register', async (req, res)=>{
 app.post('/auth', async (req, res)=>{
     const user = req.body.user;
     const pass = req.body.pass;
-    let passordHaash = await bcryptjs.hash(pass, 8);
     if(user && pass){
-        connection.query('SELECT * FROM users WHERE user = ?', [user], async (error, results)=>{
-            if(results.lenght == 0 || !(await bcryptjs.compare(pass, results[0].pass))){
+        pool.query('SELECT * FROM users WHERE username = $1', [user], async (error, results)=>{
+            if(error){
+                return res.render('login',{
+                    alert: true,
+                    alertTitle: 'Error',
+                    alertMessage: '¡Usuario y/o password incorrecto!',
+                    alertIcon: 'error',
+                    showConfirmButton: true,
+                    timer: false,
+                    ruta: 'login'
+                });
+            }
+            const rows = results.rows;
+            if(rows.length === 0 || !(await bcryptjs.compare(pass, rows[0].pass))){
                 res.render('login',{
                     alert: true,
                     alertTitle: 'Error',
@@ -198,7 +261,7 @@ app.post('/auth', async (req, res)=>{
                 })
             }else{
                 req.session.loggedin = true;             
-				req.session.name = results[0].name;
+				req.session.name = rows[0].name;
                 res.render('login',{
                     alert: true,
                     alertTitle: 'Conexión Exitosa',
@@ -211,30 +274,22 @@ app.post('/auth', async (req, res)=>{
             }
         })
     }else {	
-		res.send('Please enter user and Password!');
-		res.end();
+		res.status(400).send('Please enter user and Password!');
 	}
 })
 
-app.get('/', (req, res)=> {
+app.get('/', (req, res) => {
 	if (req.session.loggedin) {
-		res.render('index',{
+		res.render('index', {
 			login: true,
-			name: req.session.name			
-		});		
+			name: req.session.name,
+		});
 	} else {
-		res.render('index',{
-			login:false,
-			name:'Debe iniciar sesión',			
-		});				
+		res.render('index', {
+			login: false,
+			name: 'Debe iniciar sesión',
+		});
 	}
-	res.end();
-});
-
-app.use(function(req, res, next) {
-    if (!req.user)
-        res.header('Cache-Control', 'private, no-cache, no-store, must-revalidate');
-    next();
 });
 
 app.get('/logout', function (req, res) {
@@ -243,7 +298,17 @@ app.get('/logout', function (req, res) {
 	})
 });
 
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
+  console.error(err);
+  res.status(500).send('Error interno del servidor');
+});
 
-app.listen(8080, () => {
-    console.log('SERVER RUNNING IN http://localhost:8080');
+const PORT = Number(process.env.PORT) || 8080;
+const HOST = process.env.HOST || '0.0.0.0';
+
+app.listen(PORT, HOST, () => {
+    console.log(`SERVER RUNNING IN http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
 });

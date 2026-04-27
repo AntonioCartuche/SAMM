@@ -7,72 +7,103 @@
     <title>Cuestionario de Evaluación</title>
     <link rel="stylesheet" href="resources/css/style-cuestionario.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 </head>
 
 <body>
     <% if (login) { %>
-        <h3>Usuario: <strong>
-                <%= name %>
-            </strong></h3>
+        <div class="user-bar">Usuario: <strong><%= name %></strong></div>
         <% } %>
-            <header>
+            <header class="site-header">
                 <div class="logo">Software Security</div>
+                <div class="header-actions">
+                    <button type="button" class="btn-tool" id="btn-hc" aria-pressed="false" title="Alto contraste">Contraste alto</button>
+                    <button type="button" class="btn-tool" id="btn-clear-draft" title="Eliminar borrador guardado">Borrar borrador</button>
+                </div>
                 <nav>
                     <ul>
-                        <li><a href="principal">Principal</a></li>
+                        <li><a href="/principal">Principal</a></li>
                     </ul>
                 </nav>
             </header>
             <div class="container">
-                <h1>Cuestionario de Evaluación</h1>
+                <h1 class="page-title">Cuestionario SAMM</h1>
+                <p class="page-sub">Modo asistente: una sección por paso (puedes cambiar a vista completa). Tus respuestas se guardan automáticamente en este equipo.</p>
+
+                <div class="wizard-toolbar" id="wizard-toolbar">
+                    <div class="wizard-steps-track" id="wizard-steps-track" aria-hidden="true"></div>
+                    <div class="wizard-nav-row">
+                        <button type="button" class="btn-wizard btn-wizard-back" id="wizard-prev" aria-label="Sección anterior">← Anterior</button>
+                        <span class="wizard-step-label" id="wizard-step-label">Paso 1 de 5</span>
+                        <button type="button" class="btn-wizard btn-wizard-next" id="wizard-next" aria-label="Siguiente sección">Siguiente →</button>
+                    </div>
+                    <label class="wizard-view-all">
+                        <input type="checkbox" id="view-all-sections">
+                        Ver todas las secciones (modo lista)
+                    </label>
+                </div>
+
+                <div class="progress-wrap" aria-live="polite">
+                    <label>
+                        <span>Avance del puntaje (respecto al máximo posible)</span>
+                        <strong><span id="progress-pct">0</span>%</strong>
+                    </label>
+                    <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-root">
+                        <div class="progress-fill" id="progress-fill"></div>
+                    </div>
+                </div>
 
                 <form id="cuestionario">
-                    <div id="secciones-container"></div>
-                    <button type="button" onclick="calcularTotal()">Calcular Total</button>
-                    <button type="button" onclick="guardarResultados()">Guardar</button>
+                    <div id="secciones-container" class="accordion wizard-mode"></div>
                 </form>
+
+                <div class="action-bar">
+                    <div class="action-bar-inner">
+                        <button type="button" class="btn-primary" onclick="calcularTotal()">Calcular resultados</button>
+                        <button type="button" class="btn-secondary" id="btn-export-pdf">Exportar PDF</button>
+                        <button type="button" class="btn-secondary" onclick="guardarResultados()">Guardar</button>
+                    </div>
+                </div>
 
                 <div id="dashboard">
                     <h2>Resultados</h2>
+                    <div class="dashboard-meta">
+                        <div class="meta-card">
+                            <span>Total general</span>
+                            <strong id="total-general-display">0</strong>
+                        </div>
+                        <div class="meta-card">
+                            <span>Nivel de madurez</span>
+                            <strong id="nivel-madurez-display">—</strong>
+                        </div>
+                    </div>
+                    <p style="display:none"><span id="total-general">0</span><span id="nivel-madurez">0</span></p>
                     <table>
                         <thead>
                             <tr>
                                 <th>Sección</th>
                                 <th>Puntaje Total</th>
                             </tr>
-
                         </thead>
                         <tbody id="resultados-secciones"></tbody>
-                        <tfoot>
-                            <tr>
-                                <td><strong>Total General</strong></td>
-                                <td id="total-general">0</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Nivel de Madurez General</strong></td>
-                                <td id="nivel-madurez">0</td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" id="mensaje-madurez1"></td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" id="mensaje-madurez2"></td>
-                            </tr>
-                            <tr>
-                                <td colspan="2" id="mensaje-madurez3"></td>
-                            </tr>
-                        </tfoot>
                     </table>
-                    <div style="width: 80%; margin: 20px auto;">
+                    <div class="mensajes-madurez">
+                        <div class="msg-level" id="mensaje-madurez1"></div>
+                        <div class="msg-level" id="mensaje-madurez2"></div>
+                        <div class="msg-level" id="mensaje-madurez3"></div>
+                    </div>
+                    <div class="chart-wrap">
                         <canvas id="grafica-resultados"></canvas>
                     </div>
-                    <div style="width: 80%; margin: 20px auto;">
+                    <div class="chart-wrap">
                         <canvas id="grafica-radar"></canvas>
                     </div>
                 </div>
             </div>
 
             <script>
+                const SAMM_PROYECTO_KEY = <%- JSON.stringify(typeof proyectoId !== 'undefined' && proyectoId != null ? String(proyectoId) : 'sin-proyecto') %>;
+
                 const secciones = [
                     {
                         id: 'gobernanza', nombre: 'Gobernanza', preguntas: [
@@ -191,65 +222,367 @@
                 let totalVerificacion = 0;
                 let totalOperaciones = 0;
 
+                const MAX_POR_SECCION = 18;
+                const SAMM_LS_KEY = 'samm-cuestionario-v2-' + SAMM_PROYECTO_KEY;
+
+                const chartColors = [
+                    'rgba(77, 184, 168, 0.65)',
+                    'rgba(129, 140, 248, 0.65)',
+                    'rgba(251, 191, 36, 0.65)',
+                    'rgba(248, 113, 113, 0.65)',
+                    'rgba(56, 189, 248, 0.65)',
+                ];
+
+                let wizardStep = 0;
+                let viewAllMode = false;
+                let saveTimer = null;
+                let toolbarBound = false;
+
+                function collectState() {
+                    const answers = {};
+                    secciones.forEach((s) => {
+                        answers[s.id] = [];
+                        document.querySelectorAll(`#tabla-${s.id} tr`).forEach((tr) => {
+                            const sel = tr.querySelector('.select-valor');
+                            if (sel) answers[s.id].push(sel.value);
+                        });
+                    });
+                    return { v: 2, ts: Date.now(), step: wizardStep, viewAll: viewAllMode, answers };
+                }
+
+                function scheduleSave() {
+                    clearTimeout(saveTimer);
+                    saveTimer = setTimeout(() => {
+                        try {
+                            localStorage.setItem(SAMM_LS_KEY, JSON.stringify(collectState()));
+                        } catch (err) {
+                            console.warn('No se pudo guardar el borrador local', err);
+                        }
+                    }, 380);
+                }
+
+                function applyLoadedState(data) {
+                    if (!data || !data.answers) return;
+                    secciones.forEach((s) => {
+                        const arr = data.answers[s.id];
+                        if (!arr) return;
+                        const rows = document.querySelectorAll(`#tabla-${s.id} tr`);
+                        rows.forEach((tr, i) => {
+                            if (arr[i] === undefined) return;
+                            const sel = tr.querySelector('.select-valor');
+                            if (!sel) return;
+                            sel.value = String(arr[i]);
+                            const grupo = tr.querySelector('.opciones-grupo');
+                            if (grupo) {
+                                grupo.querySelectorAll('.opcion-btn').forEach((b) => {
+                                    b.classList.toggle('active', b.getAttribute('data-value') === String(arr[i]));
+                                });
+                            }
+                        });
+                        actualizarValor(s.id);
+                    });
+                    if (typeof data.step === 'number' && data.step >= 0 && data.step < secciones.length) {
+                        wizardStep = data.step;
+                    }
+                    if (data.viewAll) {
+                        viewAllMode = true;
+                        const cb = document.getElementById('view-all-sections');
+                        if (cb) cb.checked = true;
+                    }
+                }
+
+                function loadDraft() {
+                    try {
+                        const raw = localStorage.getItem(SAMM_LS_KEY);
+                        if (!raw) return;
+                        applyLoadedState(JSON.parse(raw));
+                    } catch (e) {
+                        console.warn('Borrador inválido o corrupto', e);
+                    }
+                }
+
+                function renderWizardDots() {
+                    const track = document.getElementById('wizard-steps-track');
+                    if (!track) return;
+                    track.innerHTML = '';
+                    secciones.forEach((s, i) => {
+                        const dot = document.createElement('button');
+                        dot.type = 'button';
+                        dot.className = 'wizard-dot' + (i === wizardStep ? ' is-active' : '');
+                        dot.setAttribute('aria-current', i === wizardStep ? 'step' : 'false');
+                        dot.setAttribute('aria-label', 'Ir a ' + s.nombre);
+                        dot.textContent = String(i + 1);
+                        dot.addEventListener('click', () => {
+                            wizardStep = i;
+                            syncWizardClasses();
+                            scheduleSave();
+                            document.getElementById('secciones-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        });
+                        track.appendChild(dot);
+                    });
+                }
+
+                function syncWizardClasses() {
+                    const container = document.getElementById('secciones-container');
+                    if (!container) return;
+                    const items = container.querySelectorAll('.accordion-item');
+                    container.classList.toggle('wizard-mode', !viewAllMode);
+                    container.classList.toggle('view-all-mode', viewAllMode);
+
+                    items.forEach((el, i) => {
+                        el.classList.toggle('wizard-current', !viewAllMode && i === wizardStep);
+                        el.classList.toggle('wizard-hidden', !viewAllMode && i !== wizardStep);
+                        if (!viewAllMode && i === wizardStep) {
+                            el.classList.add('is-open');
+                            const btn = el.querySelector('.accordion-trigger');
+                            if (btn) btn.setAttribute('aria-expanded', 'true');
+                        }
+                    });
+
+                    const lbl = document.getElementById('wizard-step-label');
+                    if (lbl && secciones[wizardStep]) {
+                        lbl.textContent =
+                            'Paso ' +
+                            (wizardStep + 1) +
+                            ' de ' +
+                            secciones.length +
+                            ': ' +
+                            secciones[wizardStep].nombre;
+                    }
+
+                    const prev = document.getElementById('wizard-prev');
+                    const next = document.getElementById('wizard-next');
+                    if (prev) prev.disabled = wizardStep <= 0;
+                    if (next) next.disabled = wizardStep >= secciones.length - 1;
+
+                    document.querySelectorAll('.wizard-dot').forEach((d, i) => {
+                        d.classList.toggle('is-active', i === wizardStep);
+                        d.setAttribute('aria-current', i === wizardStep ? 'step' : 'false');
+                    });
+
+                    const tb = document.getElementById('wizard-toolbar');
+                    if (tb) tb.classList.toggle('toolbar-disabled', viewAllMode);
+                }
+
+                function bindToolbarOnce() {
+                    if (toolbarBound) return;
+                    toolbarBound = true;
+
+                    document.getElementById('wizard-prev').addEventListener('click', () => {
+                        if (wizardStep > 0) {
+                            wizardStep--;
+                            syncWizardClasses();
+                            scheduleSave();
+                            document.getElementById('secciones-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    });
+                    document.getElementById('wizard-next').addEventListener('click', () => {
+                        if (wizardStep < secciones.length - 1) {
+                            wizardStep++;
+                            syncWizardClasses();
+                            scheduleSave();
+                            document.getElementById('secciones-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                    });
+                    document.getElementById('view-all-sections').addEventListener('change', (e) => {
+                        viewAllMode = !!e.target.checked;
+                        syncWizardClasses();
+                        scheduleSave();
+                    });
+
+                    document.getElementById('btn-hc').addEventListener('click', () => {
+                        document.body.classList.toggle('hc-mode');
+                        const on = document.body.classList.contains('hc-mode');
+                        localStorage.setItem('samm-hc-mode', on ? '1' : '0');
+                        document.getElementById('btn-hc').setAttribute('aria-pressed', on ? 'true' : 'false');
+                        if (grafica) {
+                            secciones.forEach((s) => actualizarValor(s.id));
+                            actualizarDashboard();
+                        }
+                    });
+
+                    document.getElementById('btn-clear-draft').addEventListener('click', () => {
+                        if (confirm('¿Borrar el borrador guardado en este equipo y recargar?')) {
+                            try {
+                                localStorage.removeItem(SAMM_LS_KEY);
+                            } catch (e) {}
+                            location.reload();
+                        }
+                    });
+
+                    document.getElementById('btn-export-pdf').addEventListener('click', exportarPDF);
+                }
+
+                function initHighContrastFromStorage() {
+                    const b = document.getElementById('btn-hc');
+                    if (localStorage.getItem('samm-hc-mode') === '1') {
+                        document.body.classList.add('hc-mode');
+                        if (b) b.setAttribute('aria-pressed', 'true');
+                    } else if (b) {
+                        b.setAttribute('aria-pressed', 'false');
+                    }
+                }
+
+                async function exportarPDF() {
+                    if (typeof html2pdf === 'undefined') {
+                        alert('No se cargó la librería PDF. Comprueba la conexión.');
+                        return;
+                    }
+                    secciones.forEach((s) => actualizarValor(s.id));
+                    actualizarDashboard();
+                    const dash = document.getElementById('dashboard');
+                    dash.classList.add('dashboard--revealed');
+                    await new Promise((r) => setTimeout(r, 650));
+
+                    const opt = {
+                        margin: [10, 10, 14, 10],
+                        filename: 'SAMM-resultados-' + new Date().toISOString().slice(0, 10) + '.pdf',
+                        image: { type: 'jpeg', quality: 0.92 },
+                        html2canvas: { scale: 2, useCORS: true, logging: false, backgroundColor: document.body.classList.contains('hc-mode') ? '#000000' : '#1a2332' },
+                        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+                        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+                    };
+                    try {
+                        await html2pdf().set(opt).from(dash).save();
+                    } catch (e) {
+                        console.error(e);
+                        alert('No se pudo generar el PDF.');
+                    }
+                }
+
                 function generarPreguntas() {
-                    let container = document.getElementById('secciones-container');
+                    initHighContrastFromStorage();
+
+                    const container = document.getElementById('secciones-container');
                     container.innerHTML = '';
 
-                    secciones.forEach(seccion => {
-                        let div = document.createElement("div");
-                        div.classList.add("seccion");
-                        div.innerHTML = `
-            <h2>${seccion.nombre}</h2>
-            <table>
-                <tr>
-                    <th>Pregunta</th>
-                    <th>Respuestas</th>
-                    <th>Valor</th>
-                </tr>
-                <tbody id="tabla-${seccion.id}"></tbody>
-                <tr>
-                    <td colspan="2"><strong>Total</strong></td>
-                    <td id="total-${seccion.id}">0</td>
-                </tr>
-            </table>
-        `;
+                    secciones.forEach((seccion, idx) => {
+                        const wrap = document.createElement('div');
+                        wrap.className = 'accordion-item' + (idx === 0 ? ' is-open' : '');
+                        wrap.innerHTML = `
+                            <button type="button" class="accordion-trigger" aria-expanded="${idx === 0}" id="acc-btn-${seccion.id}">
+                                <span>${seccion.nombre}</span>
+                                <span class="section-badge">${seccion.preguntas.length} preguntas</span>
+                                <span class="chevron" aria-hidden="true"></span>
+                            </button>
+                            <div class="accordion-panel">
+                                <div class="accordion-panel-inner">
+                                    <div class="section-table-wrap">
+                                        <table>
+                                            <tbody id="tabla-${seccion.id}"></tbody>
+                                            <tfoot>
+                                                <tr class="section-total-row">
+                                                    <td colspan="2">Total sección</td>
+                                                    <td class="total-val" id="total-${seccion.id}">0</td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>`;
+                        container.appendChild(wrap);
 
-                        container.appendChild(div);
-                        let tabla = document.getElementById(`tabla-${seccion.id}`);
-
-                        seccion.preguntas.forEach((pregunta, index) => {
-                            let fila = document.createElement("tr");
+                        const tabla = document.getElementById(`tabla-${seccion.id}`);
+                        seccion.preguntas.forEach((pregunta) => {
+                            const fila = document.createElement('tr');
+                            fila.className = 'pregunta-row';
                             fila.innerHTML = `
-                <td>${pregunta}</td>
-                <td>
-                    <select onchange="actualizarValor('${seccion.id}')">
-                        <option value="0">No</option>
-                        <option value="1">Sí</option>
-                        <option value="0.5">En parte</option>
-                    </select>
-                </td>
-                <td class="valor">0</td>
-            `;
+                                <td>${pregunta}</td>
+                                <td style="position:relative;">
+                                    <div class="opciones-grupo" role="group" aria-label="Respuesta">
+                                        <button type="button" class="opcion-btn active" data-value="0">No</button>
+                                        <button type="button" class="opcion-btn" data-value="0.5">En parte</button>
+                                        <button type="button" class="opcion-btn" data-value="1">Sí</button>
+                                    </div>
+                                    <select class="visually-hidden-select select-valor" onchange="actualizarValor('${seccion.id}')" aria-hidden="true" tabindex="-1">
+                                        <option value="0" selected>No</option>
+                                        <option value="0.5">En parte</option>
+                                        <option value="1">Sí</option>
+                                    </select>
+                                </td>
+                                <td class="valor valor-cell">0</td>`;
                             tabla.appendChild(fila);
                         });
                     });
+
+                    setupAccordionUI();
+                    setupOpcionesUI();
+                    bindToolbarOnce();
+                    loadDraft();
+                    secciones.forEach((s) => actualizarValor(s.id));
+                    renderWizardDots();
+                    syncWizardClasses();
+                    updateProgressBar();
+                }
+
+                function setupAccordionUI() {
+                    document.getElementById('secciones-container').addEventListener('click', (e) => {
+                        if (!viewAllMode) return;
+                        const btn = e.target.closest('.accordion-trigger');
+                        if (!btn) return;
+                        const item = btn.closest('.accordion-item');
+                        const open = item.classList.contains('is-open');
+                        document.querySelectorAll('.accordion-item.is-open').forEach((el) => {
+                            el.classList.remove('is-open');
+                            el.querySelector('.accordion-trigger').setAttribute('aria-expanded', 'false');
+                        });
+                        if (!open) {
+                            item.classList.add('is-open');
+                            btn.setAttribute('aria-expanded', 'true');
+                        }
+                    });
+                }
+
+                function setupOpcionesUI() {
+                    document.getElementById('secciones-container').addEventListener('click', (e) => {
+                        const opt = e.target.closest('.opcion-btn');
+                        if (!opt || !opt.closest('.opciones-grupo')) return;
+                        const grupo = opt.closest('.opciones-grupo');
+                        const tr = opt.closest('tr');
+                        const select = tr.querySelector('.select-valor');
+                        grupo.querySelectorAll('.opcion-btn').forEach((b) => b.classList.remove('active'));
+                        opt.classList.add('active');
+                        const v = opt.getAttribute('data-value');
+                        select.value = v;
+                        select.dispatchEvent(new Event('change'));
+                        scheduleSave();
+                    });
+                }
+
+                function updateProgressBar() {
+                    let suma = 0;
+                    const maximo = secciones.length * MAX_POR_SECCION;
+                    secciones.forEach((s) => {
+                        const el = document.getElementById(`total-${s.id}`);
+                        if (el) suma += parseFloat(el.textContent) || 0;
+                    });
+                    const pct = maximo > 0 ? Math.min(100, Math.round((suma / maximo) * 1000) / 10) : 0;
+                    const fill = document.getElementById('progress-fill');
+                    const lbl = document.getElementById('progress-pct');
+                    const root = document.getElementById('progress-bar-root');
+                    if (fill) fill.style.width = pct + '%';
+                    if (lbl) lbl.textContent = String(pct);
+                    if (root) {
+                        root.setAttribute('aria-valuenow', String(Math.round(pct)));
+                        root.setAttribute('aria-valuemax', '100');
+                    }
                 }
 
                 function actualizarValor(seccion) {
                     let total = 0;
-                    document.querySelectorAll(`#tabla-${seccion} tr`).forEach(tr => {
-                        let select = tr.querySelector("select");
-                        let valorCelda = tr.querySelector(".valor");
+                    document.querySelectorAll(`#tabla-${seccion} tr`).forEach((tr) => {
+                        const select = tr.querySelector('select');
+                        const valorCelda = tr.querySelector('.valor');
                         if (select && valorCelda) {
-                            let valor = parseFloat(select.value);
-                            valorCelda.innerText = valor;
+                            const valor = parseFloat(select.value);
+                            valorCelda.innerText = Number.isInteger(valor) ? valor : valor;
                             total += valor;
                         }
                     });
 
-                    document.getElementById(`total-${seccion}`).innerText = total;
+                    const totalEl = document.getElementById(`total-${seccion}`);
+                    if (totalEl) totalEl.innerText = total;
 
-            
                     switch (seccion) {
                         case 'gobernanza':
                             totalGobernanza = total;
@@ -269,210 +602,224 @@
                         default:
                             console.warn(`Sección desconocida: ${seccion}`);
                     }
-
+                    updateProgressBar();
+                    scheduleSave();
                 }
 
-                function obtenerTotales() {
-                    return {
-                        gobernanza: totalGobernanza,
-                        diseno: totalDiseno,
-                        implementacion: totalImplementacion,
-                        verificacion: totalVerificacion,
-                        operaciones: totalOperaciones
-                    };
+                function obtenerDatosRadar() {
+                    return [
+                        [totalGobernanza, 0, 0, 0, 0],
+                        [0, totalDiseno, 0, 0, 0],
+                        [0, 0, totalImplementacion, 0, 0],
+                        [0, 0, 0, totalVerificacion, 0],
+                        [0, 0, 0, 0, totalOperaciones],
+                    ];
                 }
 
                 function calcularTotal() {
-                    secciones.forEach(seccion => {
-                        actualizarValor(seccion.id);
-                    });
+                    secciones.forEach((seccion) => actualizarValor(seccion.id));
                     actualizarDashboard();
+                    const dash = document.getElementById('dashboard');
+                    if (dash) {
+                        dash.classList.add('dashboard--revealed');
+                        dash.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
                 }
 
                 let grafica;
+
+                function actualizarRadarChart(labels, datosIniciales, coloresFondo, coloresBorde, cText, cGrid) {
+                    const ctxRadar = document.getElementById('grafica-radar').getContext('2d');
+                    const ct = cText || '#e8eef4';
+                    const cg = cGrid || 'rgba(255,255,255,0.08)';
+                    const datasets = labels.map((label, index) => ({
+                        label,
+                        data: datosIniciales[index],
+                        backgroundColor: coloresFondo[index],
+                        borderColor: coloresBorde[index],
+                        borderWidth: 2,
+                        fill: true,
+                        spanGaps: false,
+                    }));
+
+                    const radarOpts = {
+                        scales: {
+                            r: {
+                                min: 0,
+                                max: 18,
+                                ticks: {
+                                    stepSize: 6,
+                                    color: ct,
+                                    backdropColor: 'transparent',
+                                    callback(value) {
+                                        if (value <= 6) return 'Nivel 1';
+                                        if (value <= 12) return 'Nivel 2';
+                                        if (value <= 18) return 'Nivel 3';
+                                        return '';
+                                    },
+                                },
+                                grid: { color: cg },
+                                angleLines: { color: cg },
+                                pointLabels: {
+                                    font: { size: 13 },
+                                    color: ct,
+                                },
+                            },
+                        },
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'bottom',
+                                labels: { color: ct, padding: 16 },
+                            },
+                        },
+                        animation: { duration: 750, easing: 'easeOutQuart' },
+                    };
+
+                    if (!window.graficaRadar) {
+                        window.graficaRadar = new Chart(ctxRadar, {
+                            type: 'radar',
+                            data: { labels, datasets },
+                            options: radarOpts,
+                        });
+                    } else {
+                        window.graficaRadar.data.labels = labels;
+                        window.graficaRadar.data.datasets = datasets;
+                        try {
+                            Object.assign(window.graficaRadar.options.scales.r.ticks, radarOpts.scales.r.ticks);
+                            Object.assign(window.graficaRadar.options.scales.r.pointLabels, radarOpts.scales.r.pointLabels);
+                            window.graficaRadar.options.scales.r.grid.color = cg;
+                            window.graficaRadar.options.scales.r.angleLines.color = cg;
+                            window.graficaRadar.options.plugins.legend.labels.color = ct;
+                        } catch (e) {}
+                        window.graficaRadar.update();
+                    }
+                }
+
                 function actualizarDashboard() {
-                    let resultadosSecciones = document.getElementById('resultados-secciones');
+                    const chartText = document.body.classList.contains('hc-mode') ? '#ffffff' : '#e8eef4';
+                    const chartGrid = document.body.classList.contains('hc-mode')
+                        ? 'rgba(255,255,255,0.28)'
+                        : 'rgba(255,255,255,0.08)';
+
+                    const resultadosSecciones = document.getElementById('resultados-secciones');
                     resultadosSecciones.innerHTML = '';
                     let totalGeneral = 0;
 
-                    let labels = [];
-                    let datos = [];
-                    let colores = [];
+                    const labels = [];
+                    const datos = [];
 
-                    secciones.forEach(seccion => {
-                        let totalSeccion = parseFloat(document.getElementById(`total-${seccion.id}`).innerText);
+                    secciones.forEach((seccion, i) => {
+                        const totalSeccion = parseFloat(document.getElementById(`total-${seccion.id}`).innerText);
                         totalGeneral += totalSeccion;
 
                         labels.push(seccion.nombre);
                         datos.push(totalSeccion);
-                        colores.push(getColorAleatorio());
 
-                        let fila = document.createElement("tr");
-                        fila.innerHTML = `
-                <td>${seccion.nombre}</td>
-                <td>${totalSeccion}</td>
-            `;
+                        const fila = document.createElement('tr');
+                        fila.innerHTML = `<td>${seccion.nombre}</td><td>${totalSeccion}</td>`;
                         resultadosSecciones.appendChild(fila);
                     });
-                    let promedio = totalGeneral / secciones.length;
+
+                    const promedio = totalGeneral / secciones.length;
 
                     let nivelMadurez;
-                    let mensajeMadurez = '';
-                    if (promedio <= 6) {
-                        nivelMadurez = 1;
-                        
-                    } else if (promedio <= 12) {
-                        nivelMadurez = 2;
-                        
-                    } else if (promedio <= 18) {
-                        nivelMadurez = 3;
-                        
-                    } 
-                    mensajeMadurez1 = 'Nivel 1: Madurez inicial. Se requiere mejorar los procesos y controles de seguridad.';
-                    mensajeMadurez2 = 'Nivel 2: Madurez intermedia. Los procesos y controles de seguridad están en desarrollo, pero aún hay áreas de mejora.';
-                    mensajeMadurez3 = 'Nivel 3: Madurez avanzada. Los procesos y controles de seguridad están bien establecidos y son efectivos.';
+                    if (promedio <= 6) nivelMadurez = 1;
+                    else if (promedio <= 12) nivelMadurez = 2;
+                    else nivelMadurez = 3;
 
-                    document.getElementById('total-general').innerText = totalGeneral.toFixed(2);
-                    document.getElementById('nivel-madurez').innerText = nivelMadurez;
-                    document.getElementById('total-general').innerText = totalGeneral;
-                    document.getElementById('mensaje-madurez1').innerText = mensajeMadurez1;
-                    document.getElementById('mensaje-madurez2').innerText = mensajeMadurez2;
-                    document.getElementById('mensaje-madurez3').innerText = mensajeMadurez3;
+                    const mensajeMadurez1 =
+                        'Nivel 1: Madurez inicial. Se requiere mejorar los procesos y controles de seguridad.';
+                    const mensajeMadurez2 =
+                        'Nivel 2: Madurez intermedia. Los procesos y controles de seguridad están en desarrollo, pero aún hay áreas de mejora.';
+                    const mensajeMadurez3 =
+                        'Nivel 3: Madurez avanzada. Los procesos y controles de seguridad están bien establecidos y son efectivos.';
+
+                    document.getElementById('total-general').textContent = totalGeneral.toFixed(2);
+                    document.getElementById('nivel-madurez').textContent = nivelMadurez;
+                    const td = document.getElementById('total-general-display');
+                    const nd = document.getElementById('nivel-madurez-display');
+                    if (td) td.textContent = totalGeneral.toFixed(2);
+                    if (nd) nd.textContent = String(nivelMadurez);
+
+                    document.getElementById('mensaje-madurez1').textContent = mensajeMadurez1;
+                    document.getElementById('mensaje-madurez2').textContent = mensajeMadurez2;
+                    document.getElementById('mensaje-madurez3').textContent = mensajeMadurez3;
+
+                    const colores = secciones.map((_, i) => chartColors[i % chartColors.length]);
+
+                    const barOpts = {
+                        scales: {
+                            x: {
+                                ticks: { color: chartText },
+                                grid: { color: chartGrid },
+                            },
+                            y: {
+                                beginAtZero: true,
+                                max: MAX_POR_SECCION,
+                                ticks: { color: chartText },
+                                grid: { color: chartGrid },
+                            },
+                        },
+                        plugins: {
+                            legend: { labels: { color: chartText } },
+                        },
+                        animation: { duration: 700, easing: 'easeOutQuart' },
+                    };
 
                     if (!grafica) {
                         grafica = new Chart(document.getElementById('grafica-resultados'), {
                             type: 'bar',
                             data: {
-                                labels: labels,
-                                datasets: [{
-                                    label: 'Resultado',
-                                    data: datos,
-                                    backgroundColor: colores,
-                                    borderColor: colores,
-                                    borderWidth: 1
-                                }]
+                                labels,
+                                datasets: [
+                                    {
+                                        label: 'Puntaje por sección (máx. ' + MAX_POR_SECCION + ')',
+                                        data: datos,
+                                        backgroundColor: colores,
+                                        borderColor: colores.map((c) => c.replace('0.65', '1')),
+                                        borderWidth: 1,
+                                    },
+                                ],
                             },
-                            options: {
-                                scales: {
-                                    y: {
-                                        beginAtZero: true
-                                    }
-                                }
-                            }
+                            options: barOpts,
                         });
                     } else {
-
                         grafica.data.labels = labels;
                         grafica.data.datasets[0].data = datos;
                         grafica.data.datasets[0].backgroundColor = colores;
-                        grafica.data.datasets[0].borderColor = colores;
+                        grafica.data.datasets[0].borderColor = colores.map((c) => c.replace('0.65', '1'));
+                        try {
+                            grafica.options.scales.x.ticks.color = chartText;
+                            grafica.options.scales.y.ticks.color = chartText;
+                            grafica.options.scales.x.grid.color = chartGrid;
+                            grafica.options.scales.y.grid.color = chartGrid;
+                            grafica.options.plugins.legend.labels.color = chartText;
+                        } catch (e) {}
                         grafica.update();
                     }
 
-                    const ctxRadar = document.getElementById('grafica-radar').getContext('2d');
-
                     const coloresFondo = [
-                        'rgba(249, 233, 60, 0.1)',
-                        'rgba(75, 192, 192, 0.2)',
-                        'rgba(153, 102, 255, 0.2)',
-                        'rgba(255, 159, 64, 0.2)',
-                        'rgba(54, 162, 235, 0.2)'
+                        'rgba(77, 184, 168, 0.12)',
+                        'rgba(129, 140, 248, 0.15)',
+                        'rgba(251, 191, 36, 0.12)',
+                        'rgba(248, 113, 113, 0.12)',
+                        'rgba(56, 189, 248, 0.12)',
                     ];
-
                     const coloresBorde = [
-                        'rgba(249, 233, 60, 1)',
-                        'rgba(75, 192, 192, 1)',
-                        'rgba(153, 102, 255, 1)',
-                        'rgba(255, 159, 64, 1)',
-                        'rgba(54, 162, 235, 1)'
+                        'rgba(77, 184, 168, 0.9)',
+                        'rgba(129, 140, 248, 0.9)',
+                        'rgba(251, 191, 36, 0.9)',
+                        'rgba(248, 113, 113, 0.9)',
+                        'rgba(56, 189, 248, 0.9)',
                     ];
 
-                    function obtenerDatosActualizados() {
-                        return [
-                            [totalGobernanza, 0, 0, 0, 0],
-                            [0, totalDiseno, 0, 0, 0],
-                            [0, 0, totalImplementacion, 0, 0],
-                            [0, 0, 0, totalVerificacion, 0],
-                            [0, 0, 0, 0, totalOperaciones]
-                        ];
-
-                    }
-
-                    function actualizarGrafica() {
-                        if (window.graficaRadar) {
-                            let nuevosDatos = obtenerDatosActualizados();
-                            window.graficaRadar.data.datasets.forEach((dataset, index) => {
-                                dataset.data = nuevosDatos[index];
-                            });
-                            window.graficaRadar.update();
-                        }
-
-                    }
-
-                    if (!window.graficaRadar) {
-                        const datosIniciales = obtenerDatosActualizados();
-
-                        const datasets = labels.map((label, index) => ({
-                            label: label,
-                            data: datosIniciales[index],
-                            backgroundColor: coloresFondo[index],
-                            borderColor: coloresBorde[index],
-                            borderWidth: 2,
-                            fill: true,
-                            spanGaps: false
-                        }));
-
-                        window.graficaRadar = new Chart(ctxRadar, {
-                            type: 'radar',
-                            data: {
-                                labels: labels,
-                                datasets: datasets
-                            },
-                            options: {
-                                scales: {
-                                    r: {
-                                        min: 0,
-                                        max: 18, 
-                                        ticks: {
-                                            stepSize: 6, 
-                                            callback: function (value) {
-                                                if (value <= 6) return 'Nivel de madurez 1';
-                                                if (value <= 12) return 'Nivel de madurez 2';
-                                                if (value <= 18) return 'Nivel de madurez 3';
-                                                return ''; 
-                                            }
-                                        },
-                                        pointLabels: {
-                                            font: {
-                                                size: 16
-                                            }
-                                        }
-                                    }
-                                },
-                                plugins: {
-                                    legend: {
-                                        display: true,
-                                        position: 'top'
-                                    }
-                                }
-                            }
-                        });
-
-
-                    }
-                    window.graficaRadar.update(actualizarGrafica);
-
-                }
-
-
-                function getColorAleatorio() {
-                    const r = Math.floor(Math.random() * 256);
-                    const g = Math.floor(Math.random() * 256);
-                    const b = Math.floor(Math.random() * 256);
-                    return `rgba(${r}, ${g}, ${b}, 0.6)`;
+                    actualizarRadarChart(labels, obtenerDatosRadar(), coloresFondo, coloresBorde, chartText, chartGrid);
                 }
 
                 function guardarResultados() {
+                    secciones.forEach((s) => actualizarValor(s.id));
+                    actualizarDashboard();
                     const resultados = secciones.map(seccion => ({
                         nombre: seccion.nombre,
                         puntaje: parseFloat(document.getElementById(`total-${seccion.id}`).innerText)
@@ -488,7 +835,7 @@
                 }
 
 
-                window.onload = generarPreguntas;
+                window.onload = () => generarPreguntas();
             </script>
 </body>
 
